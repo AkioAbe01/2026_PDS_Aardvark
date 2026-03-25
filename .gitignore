@@ -1,0 +1,19 @@
+# DATA (DO NOT PUSH)
+
+data/imgs/*.png
+data/masks/*.png
+
+!data/imgs/.gitkeep
+!data/masks/.gitkeep
+# RESULTS
+
+result/models/*
+!result/models/.gitkeep
+
+result/predictions/*
+!result/predictions/.gitkeep
+
+# PYTHON
+
+__pycache__/
+*.pyc
