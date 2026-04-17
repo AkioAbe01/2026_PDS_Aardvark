@@ -9,8 +9,6 @@ def load_metadata():
     data = pd.read_csv("data/metadata.csv")
     return data
 
-
-
 def build_image_path(row):
     """ Builds a correct path for the image"""
 
@@ -64,3 +62,19 @@ def get_image_mask_pairs(metadata):
         pairs.append((image_path, mask_path))
     return pairs
 
+
+def df_binary_cancer_label(metadata):
+    """
+    Create a feature table with img_id and binary cancer label.
+
+    1 = cancerous
+    0 = not cancerous
+    """
+    cancerous_types = ["BCC", "MEL", "SCC"]
+
+    feature = metadata.copy()
+    feature["Cancerous"] = feature["diagnostic"].isin(cancerous_types).astype(int)
+
+    feature = feature[["img_id", "Cancerous"]]
+
+    return feature
