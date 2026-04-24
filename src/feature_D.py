@@ -2,12 +2,33 @@ import numpy as np
 import cv2
 
 def get_diameter_feature(mask):
-    # Ensure binary
-    mask = (mask > 0).astype('uint8') * 255
+    """
+    Computes a resolution-normalized diameter feature from a binary mask.
+
+    The diameter is defined as the maximum thickness of the object
+    (horizontal or vertical), normalized by the image size so that
+    images with different resolutions are comparable.
+
+    Parameters
+    ----------
+    mask : np.ndarray
+        2D array representing a segmentation mask
+
+    Returns
+    -------
+    float
+        Normalized diameter in the range [0, 1], or np.nan if empty
+    """
+
+    # Ensure binary mask
+    mask = (mask > 0)
 
     # Check if mask is empty
-    if np.sum(mask) == 0:
+    if not mask.any():
         return np.nan
+
+    # Image dimensions
+    img_height, img_width = mask.shape
 
     # Height (max pixels in column)
     pixels_in_col = np.sum(mask > 0, axis=0)
@@ -23,6 +44,10 @@ def get_diameter_feature(mask):
     if width == 0:
         return np.nan
 
-    # Return diameter
-    diameter = max(height, width)
-    return diameter
+    # Diameter in pixels
+    diameter_px = max(height, width)
+
+    # Normalize by image size (scale-invariant)
+    diameter_normalized = diameter_px / max(img_height, img_width)
+
+    return diameter_normalized
