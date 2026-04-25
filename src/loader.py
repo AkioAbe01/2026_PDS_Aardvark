@@ -5,7 +5,6 @@ import os
 
 def load_metadata():
     """Loads the metadata"""
-
     data = pd.read_csv("data/metadata.csv")
     return data
 
@@ -37,7 +36,6 @@ def filter_missing_masks(metadata):
 def filter_multiple_lesions(path):
     #to be implemented
     return
-
 
 def load_image(path):
     """ Loads image"""
