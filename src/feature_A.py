@@ -18,14 +18,13 @@ def modified_mask(mask):
     aux_mask[largest_mask] = False
     return np.logical_xor(binary_mask, aux_mask)
 
-def crop_to_bbox(mask):
-    # If mask is 3D (e.g., RGB), take the first channel
-    if mask.ndim == 3:
-        mask = mask[:, :, 0]
-    labeled = skimage.measure.label(mask)
-    props = skimage.measure.regionprops(labeled)[0]
-    minr, minc, maxr, maxc = props.bbox 
-    return mask[minr:maxr, minc:maxc]
+def crop_to_bbox(mask, img):
+    ys, xs = np.where(mask > 0)
+    if len(xs) == 0:
+        return np.nan
+    minr, maxr = ys.min(), ys.max()
+    minc, maxc = xs.min(), xs.max()
+    return mask[minr:maxr, minc:maxc], img[minr:maxr, minc:maxc, :]
 
 def iou(a, b):
     """Jaccard (IoU) between two binary arrays of possibly different sizes.
