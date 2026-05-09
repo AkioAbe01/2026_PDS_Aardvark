@@ -63,6 +63,24 @@ def remove_hair(img, radius = 3, ksize = 3):
         inpainted_image: RGB image with hair removed
     """
 
+    # ----- Force correct data type and channels -----
+    # Convert to uint8 if needed
+    if img.dtype != np.uint8:
+        img = img.astype(np.uint8)
+    
+    # Handle number of channels
+    if img.ndim == 2:
+        # Grayscale -> BGR
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    elif img.ndim == 3 and img.shape[2] == 4:
+        # RGBA -> BGR (drop alpha)
+        img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
+    elif img.ndim == 3 and img.shape[2] == 3:
+        # Already 3-channels – keep as is (OpenCV expects BGR, but inpainting works on RGB too)
+        pass
+    else:
+        raise ValueError(f"Unsupported image shape: {img.shape}")
+
     hair_mask = detect_hair_mask(img, ksize = ksize)
     
     # Inpaint using the combined hair mask
@@ -98,20 +116,16 @@ def calculate_hair_coverage(img_id):
     return round(coverage, 4)
 
 # blue pen mark removal function
-def remove_pen_mark(img, radius = 3, pen_mark = False):
+def remove_pen_mark(img, radius = 3):
     """
     Removes blue pen marks
     
     Args:
         image: RGB image
         radius: Default if 3.
-        pen_mark: True if pen mark exist. Default if False.
     Returns:
         clean rgb image without pen_mark
     """
-    if not pen_mark:
-        return img
-    
     pen_mask = create_blue_pen_mask(img)
     inpainted = cv2.inpaint(img, pen_mask, inpaintRadius = radius, flags = cv2.INPAINT_TELEA)
     return inpainted
