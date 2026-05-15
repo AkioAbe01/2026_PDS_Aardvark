@@ -1,3 +1,6 @@
+# Original color feature implementation.
+# The optimized pipeline currently uses colour.py, which is an adapted version.
+
 import numpy as np
 from sklearn.cluster import KMeans
 from skimage.color import rgb2hsv
