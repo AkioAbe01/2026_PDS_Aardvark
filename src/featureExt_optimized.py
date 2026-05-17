@@ -134,22 +134,37 @@ def load_and_preprocess(img_id: str,
             logger.warning(f"Empty mask for {img_id}")
             return None, None
         
-        # Resize if needed
+        # Crop to bounding box FIRST
+        mask, img = crop_to_bbox(mask, img)
+
+        # Validate mask after cropping
+        if mask.sum() == 0:
+            logger.warning(f"Empty mask after cropping for {img_id}")
+            return None, None
+
+        # Resize cropped lesion if needed
         h, w = mask.shape
         if max(h, w) > config.max_dim:
             scale = config.max_dim / max(h, w)
-            new_h, new_w = int(h * scale), int(w * scale)
-            
-            # Resize mask (nearest neighbor to preserve binary)
-            mask = resize(mask, (new_h, new_w), order=0, 
-                         preserve_range=True, anti_aliasing=False).astype(bool)
-            
-            # Resize image (bilinear interpolation)
-            img = resize(img, (new_h, new_w), order=1, 
-                        preserve_range=True, anti_aliasing=True)
-        
-        # Crop to bounding box
-        mask, img = crop_to_bbox(mask, img)
+            new_h, new_w = max(1, int(h * scale)), max(1, int(w * scale))
+
+            # Resize mask using nearest neighbor to preserve binary values
+            mask = resize(
+                mask,
+                (new_h, new_w),
+                order=0,
+                preserve_range=True,
+                anti_aliasing=False
+            ).astype(bool)
+
+            # Resize image using bilinear interpolation
+            img = resize(
+                img,
+                (new_h, new_w),
+                order=1,
+                preserve_range=True,
+                anti_aliasing=True
+            )
         
         # Ensure uint8 for OpenCV operations
         if img.dtype != np.uint8:
