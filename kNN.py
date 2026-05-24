@@ -95,3 +95,11 @@ print(f"AUC:       {roc_auc_score(y_test, y_prob):.4f}")
 # ── 9. Save model ───────────────────────────────────────────
 os.makedirs('./results/models', exist_ok=True)
 joblib.dump(final_knn, './results/models/knn_model.pkl')
+
+#save predicitons
+os.makedirs('./results/predictions', exist_ok=True)
+results_df = df.iloc[test_idx][['patient_id', 'img_id', 'diagnostic', 'label']].copy()
+results_df['predicted'] = y_pred
+results_df['probability'] = y_prob
+results_df.to_csv('./results/predictions/predictions_KNN.csv', index=False)
+print("\nPredictions saved to results/predictions/predictions_KNN.csv")
