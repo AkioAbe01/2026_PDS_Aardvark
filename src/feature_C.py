@@ -1,257 +1,209 @@
+import cv2
 import numpy as np
-from sklearn.cluster import KMeans
-from skimage.color import rgb2hsv
+import pandas as pd
 from skimage.segmentation import slic
-from scipy.stats import circmean, circvar
+from scipy.stats import circmean
 
-
-def prepare_image_and_mask(image, mask):
+# ----------------------------------------------------------------------
+# Helper: circular mean for hue (0-180 in OpenCV, but we'll work in [0,1])
+# ----------------------------------------------------------------------
+def circular_mean_hue(hue_vals_deg):
     """
-    The aim of this function is to make sure that the mask is boolean and RGB format is consistent for all images.
-
-    ----
-    First case: if the image is 2-dimensional, then convert to a 3D RGB by duplicating values. Also make sure that the 3rd dimension goest at the end.
-                if there are 4 channels (RGBA) then drop the last channel
-    Second case: if a mask has 3 dimensions we leave only the 1st channel
-
-    Important check:
-    Check whether every pixel in the mask has same spatial dimensions as a pixel in the image (and raise an error if not)
-
-    ----
-    Returns
-        a cleaned RGB image
-        a cleaned bool mask
+    hue_vals_deg : array of hue values in degrees (0-180 for OpenCV)
+    Returns circular mean in degrees (0-180)
     """
-    #Image case
-    if image.ndim == 2:
-        image = np.stack([image, image, image], axis=-1)
+    # Convert to radians
+    hue_rad = np.deg2rad(2 * hue_vals_deg)  # because hue is circular with period 180°
+    mean_rad = np.arctan2(np.mean(np.sin(hue_rad)), np.mean(np.cos(hue_rad)))
+    mean_deg = np.rad2deg(mean_rad) / 2.0
+    if mean_deg < 0:
+        mean_deg += 180
+    return mean_deg
 
-
-    elif image.ndim == 3 and image.shape[2] == 4:
-        image = image[:, :, :3]
-
-    #Mask case
-    if mask.ndim == 3:
-        mask = mask[:, :, 0]
-
-    mask = mask > 0
-
-    if image.shape[:2] != mask.shape:
-        raise ValueError(
-            f"Image/mask mismatch: image={image.shape[:2]} mask={mask.shape}"
-        )
-
-    return image, mask
-
-
-def slic_segmentation(image, mask, n_segments=30, compactness=10):
+# ----------------------------------------------------------------------
+# Group 1: Global HSV statistics of the lesion (6 features)
+# ----------------------------------------------------------------------
+def compute_global_color_features(image_bgr, mask):
     """
-    SLIC superpixel segmentation (only inside the lesion area)
-    ---
-    Converts image to a float and then applies the slic segmentation.
-    parameters:
-        n_segments- number of superpixels
-        compactness- controls shape of segments
-        start_label- labels start from 1 and not 0
-        mask- cuts the image to take only the lesion
-        channel_axis- shows that channels are in the last dimension
-    Returns:
-        a label map with same shape as the image and each pixel is a segment's ID
+    image_bgr: BGR image (H,W,3) uint8
+    mask: binary mask (H,W) where True = lesion
+    returns: dict with global HSV features
     """
+    # Convert to HSV (OpenCV: H 0-180, S 0-255, V 0-255)
+    hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
+    h_vals = hsv[mask, 0].astype(np.float64)
+    s_vals = hsv[mask, 1].astype(np.float64)
+    v_vals = hsv[mask, 2].astype(np.float64)
 
-    image_float = image.astype(np.float32) / 255.0
+    if len(h_vals) == 0:
+        return {k: np.nan for k in ['hsv_mean_h', 'hsv_mean_s', 'hsv_mean_v',
+                                    'hsv_std_h', 'hsv_std_s', 'hsv_std_v']}
 
-    segments = slic(
-        image_float,
-        n_segments=n_segments,
-        compactness=compactness,
-        start_label=1,
-        mask=mask,
-        channel_axis=-1
-    )
+    # Circular mean for hue
+    mean_h = circular_mean_hue(h_vals) / 180.0   # normalise to [0,1]
+    mean_s = np.mean(s_vals) / 255.0
+    mean_v = np.mean(v_vals) / 255.0
 
-    return segments
+    # Standard deviations (for hue, use linear std as approximate – careful with wrap)
+    std_h = np.std(h_vals) / 180.0
+    std_s = np.std(s_vals) / 255.0
+    std_v = np.std(v_vals) / 255.0
 
-
-def compute_global_color_features(image, mask):
-    """
-    Extracts the overall color statistic of the whole lesion
-    ----
-    Computes global HSV statistics over the whole lesion.
-
-    Cases:
-        1. Handles an empty-mask case- set these to Nan
-        2.Convert pixels from RGB to HSV
-        3. Extract the HSV features: mean hue, mean saturation, mean value, hue variance, sautration and value standard dev
-        (For mean hue: hue uses circular statistics since it wraps around)
-
-    Returns:
-        features: a dict, that contains 6 HSV statistics
-        lesion_ppixels: RGB pixels inside the mask
-    """
-    lesion_pixels = image[mask]
-
-    if len(lesion_pixels) == 0:
-        features = {
-            "hsv_mean_h": np.nan,
-            "hsv_mean_s": np.nan,
-            "hsv_mean_v": np.nan,
-            "hsv_var_h":  np.nan,
-            "hsv_std_s":  np.nan,
-            "hsv_std_v":  np.nan,
-        }
-        return features, lesion_pixels
-
-    hsv_pixels = rgb2hsv(lesion_pixels[np.newaxis, :, :] / 255.0)[0]
-
-    features = {
-        "hsv_mean_h": float(circmean(hsv_pixels[:, 0], high=1, low=0)), # [0,180] for hue values 
-        "hsv_mean_s": float(np.mean(hsv_pixels[:, 1])),
-        "hsv_mean_v": float(np.mean(hsv_pixels[:, 2])),
-
-        "hsv_var_h":  float(circvar(hsv_pixels[:, 0], high=1, low=0)),
-        "hsv_std_s":  float(np.std(hsv_pixels[:, 1])),
-        "hsv_std_v":  float(np.std(hsv_pixels[:, 2])),
+    return {
+        'hsv_mean_h': mean_h,
+        'hsv_mean_s': mean_s,
+        'hsv_mean_v': mean_v,
+        'hsv_std_h': std_h,
+        'hsv_std_s': std_s,
+        'hsv_std_v': std_v
     }
 
-    return features, lesion_pixels
-
-
-def compute_slic_color_features(image, mask, segments):
+# ----------------------------------------------------------------------
+# Group 2: Local colour non-uniformity via SLIC (3 features)
+# ----------------------------------------------------------------------
+def compute_slic_color_features(image_bgr, mask, n_segments=25, compactness=10):
     """
-    The main goal is to compute how much the lesion's color changes from one local region to the other
-    in other words: it measures not just what color is the lesion but how UNEVENLY color is distributed inside the lesion
-    ---
-        convert an image to HSV
-        take the superpixels that belong to the lesion only
-        compute the mean HSV of each superpixel and measure how each of them vary accross the lesion
-    ---
-    Returns a dictionary consisting 3 features: hue variance, saturation std and value std across segments
+    Compute variance of mean HSV across superpixels inside the lesion.
     """
-    image_float = image.astype(np.float32) / 255.0
-    hsv_image = rgb2hsv(image_float)
+    # Convert BGR to RGB (SLIC expects RGB)
+    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+    img_float = image_rgb.astype(np.float32) / 255.0
 
-    segment_ids = np.unique(segments[mask])
+    # Apply SLIC
+    superpixels = slic(img_float, n_segments=n_segments, compactness=compactness,
+                       start_label=1, channel_axis=-1)
 
-    hsv_means = []
+    # Restrict superpixels to lesion mask
+    if mask.dtype != bool:
+        mask_bool = mask > 0
+    else:
+        mask_bool = mask
+    superpixels[~mask_bool] = 0
 
-    #loops through each lession superpixel and get mean HSV
-    for seg_id in segment_ids:
-        sp_mask = (segments == seg_id) & mask
-        sp_pixels_hsv = hsv_image[sp_mask]
+    # Compute mean HSV for each superpixel (using HSV from BGR image)
+    hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
+    unique_labels = np.unique(superpixels)
+    unique_labels = unique_labels[unique_labels > 0]
 
-        if len(sp_pixels_hsv) == 0:
+    means_h = []
+    means_s = []
+    means_v = []
+
+    for label in unique_labels:
+        sp_mask = (superpixels == label)
+        h_vals = hsv[sp_mask, 0].astype(np.float64)
+        s_vals = hsv[sp_mask, 1].astype(np.float64)
+        v_vals = hsv[sp_mask, 2].astype(np.float64)
+
+        if len(h_vals) < 10:
             continue
+        # Circular mean for hue (per superpixel)
+        mean_h = circular_mean_hue(h_vals) / 180.0
+        means_h.append(mean_h)
+        means_s.append(np.mean(s_vals) / 255.0)
+        means_v.append(np.mean(v_vals) / 255.0)
 
-        seg_h_mean = circmean(sp_pixels_hsv[:, 0], high=1, low=0)
-        seg_s_mean = np.mean(sp_pixels_hsv[:, 1])
-        seg_v_mean = np.mean(sp_pixels_hsv[:, 2])
+    if len(means_h) == 0:
+        return {'sp_hsv_std_h': np.nan, 'sp_hsv_std_s': np.nan, 'sp_hsv_std_v': np.nan}
 
-        hsv_means.append([seg_h_mean, seg_s_mean, seg_v_mean])
-
-    # Case:there're no valid segments -> return Nan
-    if len(hsv_means) == 0:
-        return {
-            "sp_hsv_var_h": np.nan,
-            "sp_hsv_std_s": np.nan,
-            "sp_hsv_std_v": np.nan,
-        }
-
-    hsv_means = np.array(hsv_means)
-
-    # variability across segment-level HSV means
-    #high variance means lesion has regions of very different colors which could be malignancy signal
-    features = {
-        "sp_hsv_var_h": float(circvar(hsv_means[:, 0], high=1, low=0)),
-        "sp_hsv_std_s": float(np.std(hsv_means[:, 1])),
-        "sp_hsv_std_v": float(np.std(hsv_means[:, 2])),
+    # Standard deviation of superpixel means = local non-uniformity
+    return {
+        'sp_hsv_std_h': np.std(means_h),
+        'sp_hsv_std_s': np.std(means_s),
+        'sp_hsv_std_v': np.std(means_v)
     }
 
-    return features
-
-
-def compute_relative_color_features(image, mask):
+# ----------------------------------------------------------------------
+# Group 3: Contrast "lesion vs skin" (3 features)
+# ----------------------------------------------------------------------
+def compute_relative_color_features(image_bgr, mask, skin_margin=20):
     """
-    Measures how different the lesion color is from the skin around it
-    (Since some lesions were almost the same color as the surrounding skin)
-    ---
-    Main task: compare lesion HSV color with the surrounding skin color
-
-        convert the image to a float
-        create two variables where: lesion_pixels-has the lesion pixels only, skin_pixels- has the skin pixels onl;y
-        compute mean HSVs for both variables
-        compute the hue differencr, satration and value differences
-    ---
-    Returns a dict thet has 3 features:  hue, saturation and value difference between lesion and skin
+    Compare lesion colour to surrounding healthy skin.
+    Skin region = dilated mask minus original mask.
     """
+    # Ensure mask is uint8 (0/255) for morphological operations
+    if mask.dtype == bool:
+        mask_uint8 = mask.astype(np.uint8) * 255
+    else:
+        mask_uint8 = mask.astype(np.uint8)
+        if np.max(mask_uint8) == 1:
+            mask_uint8 *= 255
 
-    image_float = image.astype(np.float32) / 255.0
+    # Dilate mask to get a surrounding ring
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (skin_margin*2+1, skin_margin*2+1))
+    dilated = cv2.dilate(mask_uint8, kernel, iterations=1)
+    skin_region = cv2.bitwise_and(dilated, cv2.bitwise_not(mask_uint8))
 
-    lesion_pixels = image_float[mask]
-    skin_pixels = image_float[~mask]
+    if np.sum(skin_region) == 0:
+        return {'rel_hsv_diff_h': np.nan, 'rel_hsv_diff_s': np.nan, 'rel_hsv_diff_v': np.nan}
 
-    # Handle in case lesion or skin is empty
-    if len(lesion_pixels) == 0 or len(skin_pixels) == 0:
-        return {
-            "rel_hsv_diff_h": np.nan,
-            "rel_hsv_diff_s": np.nan,
-            "rel_hsv_diff_v": np.nan,
-        }
+    # Convert to HSV
+    hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
+    # Lesion statistics
+    lesion_h = hsv[mask_uint8 > 0, 0].astype(np.float64)
+    lesion_s = hsv[mask_uint8 > 0, 1].astype(np.float64)
+    lesion_v = hsv[mask_uint8 > 0, 2].astype(np.float64)
+    # Skin statistics
+    skin_h = hsv[skin_region > 0, 0].astype(np.float64)
+    skin_s = hsv[skin_region > 0, 1].astype(np.float64)
+    skin_v = hsv[skin_region > 0, 2].astype(np.float64)
 
-    lesion_hsv = rgb2hsv(lesion_pixels[np.newaxis, :, :])[0]
-    skin_hsv   = rgb2hsv(skin_pixels[np.newaxis, :, :])[0]
+    if len(lesion_h) == 0 or len(skin_h) == 0:
+        return {'rel_hsv_diff_h': np.nan, 'rel_hsv_diff_s': np.nan, 'rel_hsv_diff_v': np.nan}
 
-    lesion_h_mean = circmean(lesion_hsv[:, 0], high=1, low=0)
-    lesion_s_mean = np.mean(lesion_hsv[:, 1])
-    lesion_v_mean = np.mean(lesion_hsv[:, 2])
+    # Circular mean difference for hue (minimum angular distance)
+    mean_h_lesion = circular_mean_hue(lesion_h)
+    mean_h_skin = circular_mean_hue(skin_h)
+    diff_h = min(abs(mean_h_lesion - mean_h_skin), 180 - abs(mean_h_lesion - mean_h_skin)) / 180.0
 
-    skin_h_mean = circmean(skin_hsv[:, 0], high=1, low=0)
-    skin_s_mean = np.mean(skin_hsv[:, 1])
-    skin_v_mean = np.mean(skin_hsv[:, 2])
+    # Simple difference for saturation and value
+    mean_s_lesion = np.mean(lesion_s) / 255.0
+    mean_s_skin = np.mean(skin_s) / 255.0
+    diff_s = abs(mean_s_lesion - mean_s_skin)
 
-    hue_diff = abs(lesion_h_mean - skin_h_mean)
-    hue_diff = min(hue_diff, 1 - hue_diff)  # wrap around since hue is circular
+    mean_v_lesion = np.mean(lesion_v) / 255.0
+    mean_v_skin = np.mean(skin_v) / 255.0
+    diff_v = abs(mean_v_lesion - mean_v_skin)
 
-    features = {
-        "rel_hsv_diff_h": float(hue_diff),
-        "rel_hsv_diff_s": float(lesion_s_mean - skin_s_mean),
-        "rel_hsv_diff_v": float(lesion_v_mean - skin_v_mean),
+    return {
+        'rel_hsv_diff_h': diff_h,
+        'rel_hsv_diff_s': diff_s,
+        'rel_hsv_diff_v': diff_v
     }
 
+# ----------------------------------------------------------------------
+# Master function: extract all colour features for one image
+# ----------------------------------------------------------------------
+def extract_all_colour_features(image_bgr, mask, slic_n_segments=100, slic_compactness=20, skin_margin=20):
+    """
+    Returns a dictionary with all 12 features (6+3+3).
+    """
+    features = {}
+    features.update(compute_global_color_features(image_bgr, mask))
+    features.update(compute_slic_color_features(image_bgr, mask, n_segments=slic_n_segments, compactness=slic_compactness))
+    features.update(compute_relative_color_features(image_bgr, mask, skin_margin=skin_margin))
     return features
 
+# ----------------------------------------------------------------------
+# Example: apply to your DataFrame
+# ----------------------------------------------------------------------
+if __name__ == "__main__":
+    # Load a single image and mask
+    img_id = 'PAT_597_1139_181.png'
+    img_path = '../data/imgs/' + img_id
+    mask_path = '../data/masks/' + img_id.replace('.png', '_mask.png')
 
-def get_color_feature(image, mask, n_segments=30, compactness=10):
-    """
-    Final function that creates the full set of color features using previous functions (a total of 12 features)
-    ---
-    Returns a dictionary that contains:
-        6 global lesion HSV statistics (mean and spread of HSV)
-        3 SLIC-based regional HSV variation features
-        3 relative lesion vs skin HSV difference features
-    """
+    img = cv2.imread(img_path, cv2.IMREAD_COLOR)
+    mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE) > 0
 
-    image, mask = prepare_image_and_mask(image, mask)
+    feat = extract_all_colour_features(img, mask)
+    print(pd.Series(feat))
 
-    # --- global features ---
-    global_features, lesion_pixels = compute_global_color_features(image, mask)
-
-    # --- slic ---
-    segments = slic_segmentation(
-        image,
-        mask,
-        n_segments=n_segments,
-        compactness=compactness
-    )
-    slic_features = compute_slic_color_features(image, mask, segments)
-
-    # --- relative features ---
-    relative_features = compute_relative_color_features(image, mask)
-
-    # merge them all
-    all_features = {}
-    all_features.update(global_features)
-    all_features.update(slic_features)
-    all_features.update(relative_features)
-
-    return all_features
+    # To apply to all rows in df_ann:
+    # for i, row in df_ann.iterrows():
+    #     img = cv2.imread(f"{img_dir}/{row['img_id']}")
+    #     mask = cv2.imread(f"{mask_dir}/{row['img_id']}", cv2.IMREAD_GRAYSCALE) > 0
+    #     if img is not None and mask is not None:
+    #         feat = extract_all_colour_features(img, mask)
+    #         for k, v in feat.items():
+    #             df_ann.at[i, k] = v

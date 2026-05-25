@@ -44,6 +44,7 @@ print(f"Features used: {feature_cols}")
 # ── 6. Cross-validation to find best depth (on train only) ────────────
 gkf = GroupKFold(n_splits=5)
 best_depth, best_auc = None, 0
+fold_scores_per_hp = {}
 
 for depth in [2, 4, 6, 8, 10]:
     auc_scores = []
@@ -52,12 +53,23 @@ for depth in [2, 4, 6, 8, 10]:
         model.fit(X_train.iloc[fold_train], y_train.iloc[fold_train])
         probs = model.predict_proba(X_train.iloc[fold_val])[:, 1]
         auc_scores.append(roc_auc_score(y_train.iloc[fold_val], probs))
+    fold_scores_per_hp[depth] = auc_scores
     mean_auc = np.mean(auc_scores)
     print(f"Depth {depth}: AUC = {mean_auc:.4f} ± {np.std(auc_scores):.4f}")
     if mean_auc > best_auc:
         best_auc, best_depth = mean_auc, depth
 
 print(f"\nBest depth: {best_depth}")
+
+# Save per-fold AUC scores for the best hyperparameter (used by evaluation.ipynb)
+os.makedirs('./results/predictions', exist_ok=True)
+best_fold_scores = fold_scores_per_hp[best_depth]
+pd.DataFrame({
+    'fold': range(1, len(best_fold_scores) + 1),
+    'auc':  best_fold_scores,
+    'hyperparam': best_depth,
+}).to_csv('./results/predictions/cv_folds_DT.csv', index=False)
+print(f"CV fold scores saved to results/predictions/cv_folds_DT.csv")
 
 # ── 7. Train final model ──────────────────────────────────────────────
 final_model = DecisionTreeClassifier(max_depth=best_depth, random_state=42)
