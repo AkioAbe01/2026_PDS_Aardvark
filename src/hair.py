@@ -1,8 +1,48 @@
 import numpy as np
 import pandas as pd
 import cv2
+import os
+import matplotlib.pyplot as plt
+
 # ======================================================================
-# hair mask detect function 
+# READ IMAGE AND MASK
+# ======================================================================
+def read_img_mask(img_id, img_dir = '../data/imgs/', mask_dir = '../data/masks/'):
+    '''
+    Read the image given its img_id, img_dir and mask_dir. Ensures img and mask are correct.
+    '''
+    img_path = img_dir + img_id
+    mask_path = mask_dir + img_id.replace('.png', '_mask.png')
+
+    # Verify if path exists
+    if (not os.path.exists(img_path)) or (not os.path.exists(mask_path)):
+        print('Path Error')
+        return np.nan, np.nan
+    
+    # Read Image and Mask
+    img_bgr = cv2.imread(img_path)
+    mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+
+    # Check the correctness of img and mask
+    if img_bgr.shape[:2] != mask.shape:
+        print('Img-Mask mismatch Error')
+        return np.nan, np.nan
+    if img_bgr.shape[2] > 3: 
+        # only keep the first 3 channel for the image
+        img_bgr = img_bgr[:,:,:3]
+    if mask.ndim > 2:
+        # remove 3 dim is there is any
+        mask = mask[:,:,0]
+    if np.max(mask) > 1:
+        # normalise its value [0,1]
+        mask = (mask) / 255
+    # binarise the mask
+    binary_mask = np.where(mask > 0.5, 1, 0)
+    return img_bgr, binary_mask
+
+# ======================================================================
+# HAIR FUNCTIONS
+# ======================================================================
 
 def detect_hair_mask(image, ksize = 3):
     """
@@ -32,24 +72,6 @@ def detect_hair_mask(image, ksize = 3):
     combined_hair_mask = cv2.bitwise_or(black_hair_mask, white_hair_mask)
     
     return combined_hair_mask
-
-# pen mask detect function
-
-def create_blue_pen_mask(img):
-
-    # Convert to HSV
-    hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-
-    # Typical wide blue range
-    lower_blue = np.array([100, 50, 50])
-    upper_blue = np.array([140, 255, 255])
-
-    # Create mask for blue range
-    mask = cv2.inRange(hsv_img, lower_blue, upper_blue)
-    
-    return mask
-
-# ======================================================================
 
 # hair removal function
 def remove_hair(img, radius = 3, ksize = 3):
@@ -88,32 +110,56 @@ def remove_hair(img, radius = 3, ksize = 3):
     return inpainted
 
 # hair coverage function
-def calculate_hair_coverage(img_id):
+
+def calculate_hair_coverage(img_id: str):
     """
     Calculate probability of lesion covered by hair.
     
     Args:
-        image: RGB image
+        image_id: provide image id 
     Returns:
         coverage_probability: float (0-1)
 
     """
-    img_path = '../data/imgs/' + img_id
-    mask_path = '../data/masks/' + img_id.replace('.png', '_mask.png')
-
-    image = cv2.imread(img_path)
-    mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-    mask = mask > 0.5  # bool values
+    if not isinstance(img_id, str): # expects string 
+        return np.nan
+    
+    image_bgr, mask = read_img_mask(img_id) # img_bgr, binary_mask
 
     # Get hair mask within lesion
-    hair_mask = detect_hair_mask(image).astype(bool)
+    hair_mask = detect_hair_mask(image_bgr)
+
+    if hair_mask.shape != mask.shape:
+        print('Mismatch Error in hair mask and lesion mask')
+        return np.nan
     
     # Count pixels (area)
-    total_area = np.sum(mask) # lesion region
-    hair_area = np.sum(hair_mask & mask) # hair in the lesion
-    coverage = (hair_area) / (total_area)
+
+    lesion_area = np.sum(mask > 0) # lesion area
+    hair_on_lesion = np.logical_and(hair_mask > 0, mask > 0)
+    coverage = np.sum(hair_on_lesion) / lesion_area if lesion_area > 0 else 0 
     
     return round(coverage, 4)
+
+# ======================================================================
+# PEN MARK FUNCTIONS
+# ======================================================================
+
+# pen mask detect function
+
+def create_blue_pen_mask(img):
+
+    # Convert to HSV
+    hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+    # Typical wide blue range
+    lower_blue = np.array([100, 50, 50])
+    upper_blue = np.array([140, 255, 255])
+
+    # Create mask for blue range
+    mask = cv2.inRange(hsv_img, lower_blue, upper_blue)
+    
+    return mask
 
 # blue pen mark removal function
 def remove_pen_mark(img, radius = 3):

@@ -118,7 +118,7 @@ def load_and_preprocess(img_id: str,
             logger.warning(f"Mask not found: {mask_path}")
             return None, None
         
-        # Load images
+        # Load images (rgb by default)
         raw_mask = plt.imread(str(mask_path))
         img = plt.imread(str(img_path))
         
@@ -139,6 +139,8 @@ def load_and_preprocess(img_id: str,
         if max(h, w) > config.max_dim:
             scale = config.max_dim / max(h, w)
             new_h, new_w = int(h * scale), int(w * scale)
+
+            # Downscale version
             
             # Resize mask (nearest neighbor to preserve binary)
             mask = resize(mask, (new_h, new_w), order=0, 

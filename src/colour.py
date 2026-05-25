@@ -139,11 +139,11 @@ def compute_relative_color_features(image_bgr, mask, skin_margin=20):
 
     # Convert to HSV
     hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
-    # Lesion statistics
+    # Lesion statistics (lesion area)
     lesion_h = hsv[mask_uint8 > 0, 0].astype(np.float64)
     lesion_s = hsv[mask_uint8 > 0, 1].astype(np.float64)
     lesion_v = hsv[mask_uint8 > 0, 2].astype(np.float64)
-    # Skin statistics
+    # Skin statistics (ring area)
     skin_h = hsv[skin_region > 0, 0].astype(np.float64)
     skin_s = hsv[skin_region > 0, 1].astype(np.float64)
     skin_v = hsv[skin_region > 0, 2].astype(np.float64)
@@ -183,27 +183,3 @@ def extract_all_colour_features(image_bgr, mask, slic_n_segments=100, slic_compa
     features.update(compute_slic_color_features(image_bgr, mask, n_segments=slic_n_segments, compactness=slic_compactness))
     features.update(compute_relative_color_features(image_bgr, mask, skin_margin=skin_margin))
     return features
-
-# ----------------------------------------------------------------------
-# Example: apply to your DataFrame
-# ----------------------------------------------------------------------
-if __name__ == "__main__":
-    # Load a single image and mask
-    img_id = 'PAT_597_1139_181.png'
-    img_path = '../data/imgs/' + img_id
-    mask_path = '../data/masks/' + img_id.replace('.png', '_mask.png')
-
-    img = cv2.imread(img_path, cv2.IMREAD_COLOR)
-    mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE) > 0
-
-    feat = extract_all_colour_features(img, mask)
-    print(pd.Series(feat))
-
-    # To apply to all rows in df_ann:
-    # for i, row in df_ann.iterrows():
-    #     img = cv2.imread(f"{img_dir}/{row['img_id']}")
-    #     mask = cv2.imread(f"{mask_dir}/{row['img_id']}", cv2.IMREAD_GRAYSCALE) > 0
-    #     if img is not None and mask is not None:
-    #         feat = extract_all_colour_features(img, mask)
-    #         for k, v in feat.items():
-    #             df_ann.at[i, k] = v

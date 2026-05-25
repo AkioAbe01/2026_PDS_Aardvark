@@ -105,7 +105,7 @@ def compute_global_color_features(image, mask):
     hsv_pixels = rgb2hsv(lesion_pixels[np.newaxis, :, :] / 255.0)[0]
 
     features = {
-        "hsv_mean_h": float(circmean(hsv_pixels[:, 0], high=1, low=0)),
+        "hsv_mean_h": float(circmean(hsv_pixels[:, 0], high=1, low=0)), # [0,180] for hue values 
         "hsv_mean_s": float(np.mean(hsv_pixels[:, 1])),
         "hsv_mean_v": float(np.mean(hsv_pixels[:, 2])),
 
