@@ -48,6 +48,7 @@ gkf = GroupKFold(n_splits=5)
 
 C_values = [0.01, 0.1, 1, 10, 100]
 best_C, best_auc = None, 0
+fold_scores_per_hp = {}
 
 for C in C_values:
     auc_scores = []
@@ -69,6 +70,7 @@ for C in C_values:
 
         auc_scores.append(roc_auc_score(y_train.iloc[fold_val], probs))
 
+    fold_scores_per_hp[C] = auc_scores
     mean_auc = np.mean(auc_scores)
     print(f"C={C}: AUC = {mean_auc:.4f}")
 
@@ -76,6 +78,16 @@ for C in C_values:
         best_auc, best_C = mean_auc, C
 
 print(f"Best C: {best_C}")
+
+# Save per-fold AUC scores for the best hyperparameter (used by evaluation.ipynb)
+os.makedirs('./results/predictions', exist_ok=True)
+best_fold_scores = fold_scores_per_hp[best_C]
+pd.DataFrame({
+    'fold': range(1, len(best_fold_scores) + 1),
+    'auc':  best_fold_scores,
+    'hyperparam': best_C,
+}).to_csv('./results/predictions/cv_folds_LR.csv', index=False)
+print(f"CV fold scores saved to results/predictions/cv_folds_LR.csv")
 
 # ── 7. Train final model ────────────────────────────────────
 final_lr = Pipeline([
