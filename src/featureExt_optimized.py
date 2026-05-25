@@ -27,7 +27,7 @@ import warnings
 from feature_A import modified_mask, lesion_symmetry, crop_to_bbox
 from feature_B import get_border_feature
 from feature_D import get_diameter_feature
-from hair import remove_hair, remove_pen_mark
+from hair.hair import remove_hair, remove_pen_mark
 from colour import extract_all_colour_features
 
 # ----------------------------------------------------------------------
