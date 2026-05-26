@@ -11,25 +11,20 @@ from sklearn.impute import SimpleImputer
 from sklearn.neighbors import KNeighborsClassifier
 
 # ── 1. Load features ─────────────────────────────────────────
-df = pd.read_csv('./src/featureDf.csv', index_col=0)
+df = pd.read_csv('./featureDf_last.csv')
 
-# ── 2. Merge color features ─────────────────────────────────
-color_df = pd.read_csv('./data/features_data.csv')
-color_df['img_id'] = color_df['image'].str.replace('data/imgs/', '', regex=False)
-
+# ── 2. Define feature columns ────────────────────────────────
 color_cols = ['hsv_mean_h', 'hsv_mean_s', 'hsv_mean_v',
-              'hsv_var_h', 'hsv_std_s', 'hsv_std_v',
-              'sp_hsv_var_h', 'sp_hsv_std_s', 'sp_hsv_std_v',
+              'hsv_std_h', 'hsv_std_s', 'hsv_std_v',
+              'sp_hsv_std_h', 'sp_hsv_std_s', 'sp_hsv_std_v',
               'rel_hsv_diff_h', 'rel_hsv_diff_s', 'rel_hsv_diff_v']
-
-df = df.merge(color_df[['img_id'] + color_cols], on='img_id', how='left')
 
 # ── 3. Create label ─────────────────────────────────────────
 cancerous = ['BCC', 'MEL', 'SCC']
 df['label'] = df['diagnostic'].isin(cancerous).astype(int)
 
 # ── 4. Define data ──────────────────────────────────────────
-feature_cols = ['feature_A', 'feature_B', 'feature_D'] + color_cols
+feature_cols = ['symmetry', 'border', 'diameter'] + color_cols
 
 X = df[feature_cols]
 y = df['label']
@@ -113,5 +108,5 @@ os.makedirs('./results/predictions', exist_ok=True)
 results_df = df.iloc[test_idx][['patient_id', 'img_id', 'diagnostic', 'label']].copy()
 results_df['predicted'] = y_pred
 results_df['probability'] = y_prob
-results_df.to_csv('./results/predictions/predictions_KNN.csv', index=False)
-print("\nPredictions saved to results/predictions/predictions_KNN.csv")
+results_df.to_csv('./results/predictions/predictions_kNN.csv', index=False)
+print("\nPredictions saved to results/predictions/predictions_kNN.csv")

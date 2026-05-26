@@ -99,7 +99,7 @@ def compute_global_color_features(image, mask):
             "hsv_mean_h": np.nan,
             "hsv_mean_s": np.nan,
             "hsv_mean_v": np.nan,
-            "hsv_var_h":  np.nan,
+            "hsv_std_h":  np.nan,
             "hsv_std_s":  np.nan,
             "hsv_std_v":  np.nan,
         }
@@ -112,7 +112,7 @@ def compute_global_color_features(image, mask):
         "hsv_mean_s": float(np.mean(hsv_pixels[:, 1])),
         "hsv_mean_v": float(np.mean(hsv_pixels[:, 2])),
 
-        "hsv_var_h":  float(circvar(hsv_pixels[:, 0], high=1, low=0)),
+        "hsv_std_h":  float(circvar(hsv_pixels[:, 0], high=1, low=0)),
         "hsv_std_s":  float(np.std(hsv_pixels[:, 1])),
         "hsv_std_v":  float(np.std(hsv_pixels[:, 2])),
     }
@@ -155,7 +155,7 @@ def compute_slic_color_features(image, mask, segments):
     # Case:there're no valid segments -> return Nan
     if len(hsv_means) == 0:
         return {
-            "sp_hsv_var_h": np.nan,
+            "sp_hsv_std_h": np.nan,
             "sp_hsv_std_s": np.nan,
             "sp_hsv_std_v": np.nan,
         }
@@ -165,7 +165,7 @@ def compute_slic_color_features(image, mask, segments):
     # variability across segment-level HSV means
     #high variance means lesion has regions of very different colors which could be malignancy signal
     features = {
-        "sp_hsv_var_h": float(circvar(hsv_means[:, 0], high=1, low=0)),
+        "sp_hsv_std_h": float(circvar(hsv_means[:, 0], high=1, low=0)),
         "sp_hsv_std_s": float(np.std(hsv_means[:, 1])),
         "sp_hsv_std_v": float(np.std(hsv_means[:, 2])),
     }

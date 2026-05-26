@@ -178,7 +178,7 @@ def process_one_image(args: Tuple[str, Config, bool, int]) -> Dict:
         'processing_status': 'failed',
         'error_message': None
     }
-    
+
     try:
         # Load and preprocess
         mask, img = load_and_preprocess(img_id, config, pen_mark, hair_rating)
