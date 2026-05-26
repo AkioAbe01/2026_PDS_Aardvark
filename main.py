@@ -7,25 +7,20 @@ import joblib
 import os
 
 # ── 1. Load features ──────────────────────────────────────────────────
-df = pd.read_csv('./src/featureDf.csv', index_col=0)
+df = pd.read_csv('./featureDf_last.csv')
 
-# ── 2. Merge color features ───────────────────────────────────────────
-color_df = pd.read_csv('./data/features_data.csv')
-color_df['img_id'] = color_df['image'].str.replace('data/imgs/', '', regex=False)
-
+# ── 2. Define feature columns ─────────────────────────────────────────
 color_cols = ['hsv_mean_h', 'hsv_mean_s', 'hsv_mean_v',
-              'hsv_var_h', 'hsv_std_s', 'hsv_std_v',
-              'sp_hsv_var_h', 'sp_hsv_std_s', 'sp_hsv_std_v',
+              'hsv_std_h', 'hsv_std_s', 'hsv_std_v',
+              'sp_hsv_std_h', 'sp_hsv_std_s', 'sp_hsv_std_v',
               'rel_hsv_diff_h', 'rel_hsv_diff_s', 'rel_hsv_diff_v']
-
-df = df.merge(color_df[['img_id'] + color_cols], on='img_id', how='left')
 
 # ── 3. Binary cancer label ────────────────────────────────────────────
 cancerous = ['BCC', 'MEL', 'SCC']
 df['label'] = df['diagnostic'].isin(cancerous).astype(int)
 
 # ── 4. Define X, y, groups ────────────────────────────────────────────
-feature_cols = ['feature_A', 'feature_B', 'feature_D'] + color_cols
+feature_cols = ['symmetry', 'border', 'diameter'] + color_cols
 X = df[feature_cols].fillna(0)
 y = df['label']
 groups = df['patient_id']

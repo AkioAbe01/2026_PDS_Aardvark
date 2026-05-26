@@ -92,7 +92,7 @@ def process_one_image(args):
 # ----------------------------------------------------------------------
 # 3. Main: read data, prepare arguments, run parallel, save results
 # ----------------------------------------------------------------------
-def main(save_path='featureDf_complete.csv'):
+def main(save_path='featureDf_last.csv'):
     print("Loading DataFrame...")
     df = pd.read_csv('../data/new_metadata.csv', index_col=0)
     df = df[df['Valid_mask'] == True]

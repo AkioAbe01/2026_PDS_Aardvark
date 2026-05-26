@@ -28,7 +28,7 @@ from feature_A import modified_mask, lesion_symmetry, crop_to_bbox
 from feature_B import get_border_feature
 from feature_D import get_diameter_feature
 from hair import remove_hair, remove_pen_mark
-from colour import extract_all_colour_features
+from feature_C import get_color_feature as extract_all_colour_features
 
 # ----------------------------------------------------------------------
 # Configuration and Logging Setup
@@ -360,7 +360,7 @@ def prepare_arguments(config: Config) -> Tuple[List, Dict]:
 
 
 def run_feature_extraction(config: Config, 
-                          save_path: str = 'featureDf_complete.csv',
+                          save_path: str = 'featureDf_last.csv',
                           use_parallel: bool = True) -> pd.DataFrame:
     """
     Main feature extraction pipeline.
@@ -445,10 +445,14 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Extract features from dermoscopy images')
-    parser.add_argument('--data-dir', type=str, default='../data',
-                       help='Path to data directory (default: ../data)')
-    parser.add_argument('--output', type=str, default='featureDf_complete.csv',
-                       help='Output CSV filename (default: featureDf_complete.csv)')
+    # Default to data/ directory relative to this script's location,
+    # so the script works whether run from project root or src/.
+    _script_dir = Path(__file__).resolve().parent
+    _default_data_dir = str(_script_dir.parent / 'data')
+    parser.add_argument('--data-dir', type=str, default=_default_data_dir,
+                       help='Path to data directory (default: <project_root>/data)')
+    parser.add_argument('--output', type=str, default='featureDf_last.csv',
+                       help='Output CSV filename (default: featureDf_last.csv)')
     parser.add_argument('--max-dim', type=int, default=256,
                        help='Maximum image dimension (default: 256)')
     parser.add_argument('--processes', type=int, default=None,
