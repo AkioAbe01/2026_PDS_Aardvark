@@ -3,6 +3,7 @@ import pandas as pd
 import cv2
 import os
 import matplotlib.pyplot as plt
+import skimage.measure
 
 # ======================================================================
 # READ IMAGE AND MASK
@@ -125,6 +126,7 @@ def calculate_hair_coverage(img_id: str):
         return np.nan
     
     image_bgr, mask = read_img_mask(img_id) # img_bgr, binary_mask
+    mask = modified_mask(mask)
 
     # Get hair mask within lesion
     hair_mask = detect_hair_mask(image_bgr)
@@ -177,3 +179,35 @@ def remove_pen_mark(img, radius = 3):
     return inpainted
 
 # ======================================================================
+
+def modified_mask(mask):
+    binary_mask = (mask > 0.5).astype(bool)
+    labeled = skimage.measure.label(binary_mask)
+    props = skimage.measure.regionprops(labeled)
+    if not props:
+        return binary_mask
+    largest_region = max(props, key=lambda r: r.area)
+    largest_mask = (labeled == largest_region.label).astype(bool)
+    aux_mask = binary_mask.copy()
+    aux_mask[largest_mask] = False
+    return np.logical_xor(binary_mask, aux_mask)
+
+
+# add hair coverage to the file
+
+def add_hair_cvg():
+    print('Reading feature dataframe...')
+
+    df = pd.read_csv('../data/new_metadata.csv')
+    df = df[df.Valid_mask == True]
+    df_hair = df['img_id']
+
+    print('Calculating hair coverage...')
+    df_hair['hair_coverage'] = df_hair['img_id'].apply(calculate_hair_coverage)
+    df_hair.to_csv('hair_cvg.csv', index = False)
+
+    print('Completed and saved')
+    return 
+
+if __name__ == '__main__':
+    add_hair_cvg()
