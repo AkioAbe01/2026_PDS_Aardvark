@@ -7,16 +7,23 @@ from skimage.transform import resize
 import time
 import logging
 import os
+import sys
 from pathlib import Path
 from typing import Tuple, Dict, Optional, List
 import warnings
+
+# Add project root to sys.path so `from hair.hair import ...` works
+# regardless of where this script is launched from.
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
 # Import custom modules
 from feature_A import modified_mask, lesion_symmetry, crop_to_bbox
 from feature_B import get_border_feature
 from feature_D import get_diameter_feature
-from hair import remove_hair, remove_pen_mark
-from colour import extract_all_colour_features
+from feature_C import extract_all_colour_features
+from hair.hair import remove_hair, remove_pen_mark
 
 # Original version (without resizing)
 
@@ -49,7 +56,7 @@ class Config:
         self.img_dir = self.data_dir / 'imgs'
         self.mask_dir = self.data_dir / 'masks'
         self.metadata_path = self.data_dir / 'new_metadata.csv'
-        self.annotations_path = self.data_dir / 'annotation.csv'
+        self.annotations_path = self.data_dir / 'annotations.csv'
         self.max_dim = max_dim
         
         # Use 75% of available cores by default (leave some for system)
@@ -134,7 +141,13 @@ def load_and_preprocess(img_id: str,
                 img = (img * 255).astype(np.uint8)
             else:
                 img = img.astype(np.uint8)
-        
+
+        # Drop alpha channel if present, and make the array C-contiguous —
+        # cv2.inpaint rejects non-contiguous slices (the crop above is a view).
+        if img.ndim == 3 and img.shape[2] == 4:
+            img = img[:, :, :3]
+        img = np.ascontiguousarray(img)
+
         # Hair removal based on rating
         if hair_rating == 1:
             img = remove_hair(img, radius=2, ksize=4)
@@ -321,7 +334,7 @@ def prepare_arguments(config: Config) -> Tuple[List, Dict]:
 
 
 def run_feature_extraction(config: Config, 
-                          save_path: str = 'featuredf_original.csv',
+                          save_path: str = 'featureDf_extended.csv',
                           use_parallel: bool = True) -> pd.DataFrame:
     """
     Main feature extraction pipeline.
@@ -408,8 +421,8 @@ def main():
     parser = argparse.ArgumentParser(description='Extract features from dermoscopy images')
     parser.add_argument('--data-dir', type=str, default='../data',
                        help='Path to data directory (default: ../data)')
-    parser.add_argument('--output', type=str, default='featuredf_original.csv',
-                       help='Output CSV filename (default: featuredf_original.csv)')
+    parser.add_argument('--output', type=str, default='featureDf_extended.csv',
+                       help='Output CSV filename (default: featureDf_extended.csv)')
     parser.add_argument('--max-dim', type=int, default=256,
                        help='Maximum image dimension (default: 256)')
     parser.add_argument('--processes', type=int, default=None,
