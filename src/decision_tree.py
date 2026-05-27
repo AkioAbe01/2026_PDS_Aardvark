@@ -1,31 +1,38 @@
 import pandas as pd
 import numpy as np
+import argparse
 from sklearn.model_selection import GroupShuffleSplit, GroupKFold
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score, recall_score, f1_score, roc_auc_score, precision_score
 import joblib
 import os
 
-# ── 1. Load features ──────────────────────────────────────────────────
-df = pd.read_csv('./src/featureDf.csv', index_col=0)
+# ── 0. Parse CLI arguments ────────────────────────────────────────────
+parser = argparse.ArgumentParser(description='Train Decision Tree on extracted skin-lesion features')
+parser.add_argument('--input', default='./featureDf_baseline.csv',
+                    help='Path to feature CSV (default: ./featureDf_baseline.csv)')
+parser.add_argument('--tag', default='baseline',
+                    help='Tag appended to output filenames (baseline / extended / open_question)')
+args = parser.parse_args()
 
-# ── 2. Merge color features ───────────────────────────────────────────
-color_df = pd.read_csv('./data/features_data.csv')
-color_df['img_id'] = color_df['image'].str.replace('data/imgs/', '', regex=False)
+# ── 1. Load features (all features already in this CSV) ───────────────
+df = pd.read_csv(args.input)
 
-color_cols = ['hsv_mean_h', 'hsv_mean_s', 'hsv_mean_v',
-              'hsv_var_h', 'hsv_std_s', 'hsv_std_v',
-              'sp_hsv_var_h', 'sp_hsv_std_s', 'sp_hsv_std_v',
-              'rel_hsv_diff_h', 'rel_hsv_diff_s', 'rel_hsv_diff_v']
-
-df = df.merge(color_df[['img_id'] + color_cols], on='img_id', how='left')
+# ── 2. Add diagnostic + patient_id from metadata ──────────────────────
+meta = pd.read_csv('./data/new_metadata.csv')
+df = df.merge(meta[['img_id', 'patient_id', 'diagnostic']], on='img_id', how='left')
+df = df.dropna(subset=['patient_id', 'diagnostic'])  # need both for split + label
 
 # ── 3. Binary cancer label ────────────────────────────────────────────
 cancerous = ['BCC', 'MEL', 'SCC']
 df['label'] = df['diagnostic'].isin(cancerous).astype(int)
 
-# ── 4. Define X, y, groups ────────────────────────────────────────────
-feature_cols = ['feature_A', 'feature_B', 'feature_D'] + color_cols
+# ── 4. Define X, y, groups (auto-detect feature columns) ──────────────
+exclude = ['img_id', 'patient_id', 'diagnostic', 'label',
+           'processing_status', 'error_message']
+feature_cols = [c for c in df.columns if c not in exclude]
+print(f"Input: {args.input} | tag: {args.tag} | {len(feature_cols)} features")
+
 X = df[feature_cols].fillna(0)
 y = df['label']
 groups = df['patient_id']
@@ -68,8 +75,8 @@ pd.DataFrame({
     'fold': range(1, len(best_fold_scores) + 1),
     'auc':  best_fold_scores,
     'hyperparam': best_depth,
-}).to_csv('./results/predictions/cv_folds_DT.csv', index=False)
-print(f"CV fold scores saved to results/predictions/cv_folds_DT.csv")
+}).to_csv(f'./results/predictions/cv_folds_DT_{args.tag}.csv', index=False)
+print(f"CV fold scores saved to results/predictions/cv_folds_DT_{args.tag}.csv")
 
 # ── 7. Train final model ──────────────────────────────────────────────
 final_model = DecisionTreeClassifier(max_depth=best_depth, random_state=42)
@@ -77,7 +84,7 @@ final_model.fit(X_train, y_train)
 
 # ── 8. Save model ─────────────────────────────────────────────────────
 os.makedirs('./results/models', exist_ok=True)
-joblib.dump(final_model, './results/models/decision_tree.pkl')
+joblib.dump(final_model, f'./results/models/decision_tree_{args.tag}.pkl')
 
 # ── 9. Evaluate on test set ───────────────────────────────────────────
 y_pred = final_model.predict(X_test)
@@ -95,5 +102,5 @@ os.makedirs('./results/predictions', exist_ok=True)
 results_df = df.iloc[test_idx][['patient_id', 'img_id', 'diagnostic', 'label']].copy()
 results_df['predicted'] = y_pred
 results_df['probability'] = y_prob
-results_df.to_csv('./results/predictions/predictions_DT.csv', index=False)
-print("\nPredictions saved to results/predictions/predictions_DT.csv")
+results_df.to_csv(f'./results/predictions/predictions_DT_{args.tag}.csv', index=False)
+print(f"\nPredictions saved to results/predictions/predictions_DT_{args.tag}.csv")

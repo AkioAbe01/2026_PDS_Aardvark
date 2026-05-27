@@ -15,8 +15,7 @@ import warnings
 from feature_A import modified_mask, lesion_symmetry, crop_to_bbox
 from feature_B import get_border_feature
 from feature_D import get_diameter_feature
-from hair import remove_hair, remove_pen_mark
-from colour import extract_all_colour_features
+from feature_C import extract_all_colour_features
 
 # Original version (without resizing)
 
@@ -135,20 +134,8 @@ def load_and_preprocess(img_id: str,
             else:
                 img = img.astype(np.uint8)
         
-        # Hair removal based on rating
-        if hair_rating == 1:
-            img = remove_hair(img, radius=2, ksize=4)
-        elif hair_rating == 2:
-            img = remove_hair(img, radius=3, ksize=7)
-        elif hair_rating == 3:
-            img = remove_hair(img, radius=5, ksize=9)
-        elif hair_rating > 3:
-            logger.warning(f"Invalid hair_rating {hair_rating} for {img_id}, skipping hair removal")
-        
-        # Pen mark removal
-        if pen_mark:
-            img = remove_pen_mark(img)
-        
+        # Baseline: no hair removal, no pen mark removal (intentionally skipped)
+
         return mask, img
     
     except Exception as e:
@@ -321,7 +308,7 @@ def prepare_arguments(config: Config) -> Tuple[List, Dict]:
 
 
 def run_feature_extraction(config: Config, 
-                          save_path: str = 'featuredf_original.csv',
+                          save_path: str = 'featureDf_baseline.csv',
                           use_parallel: bool = True) -> pd.DataFrame:
     """
     Main feature extraction pipeline.
@@ -408,7 +395,7 @@ def main():
     parser = argparse.ArgumentParser(description='Extract features from dermoscopy images')
     parser.add_argument('--data-dir', type=str, default='../data',
                        help='Path to data directory (default: ../data)')
-    parser.add_argument('--output', type=str, default='featuredf_original.csv',
+    parser.add_argument('--output', type=str, default='featureDf_baseline.csv',
                        help='Output CSV filename (default: featuredf_original.csv)')
     parser.add_argument('--max-dim', type=int, default=256,
                        help='Maximum image dimension (default: 256)')
