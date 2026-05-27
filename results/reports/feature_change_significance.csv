@@ -1,0 +1,16 @@
+feature,n_changed,mean_abs_change,wilcoxon_p,sig_alpha,sig_bonferroni
+hsv_mean_s,792,0.019135,0.0,True,True
+hsv_mean_v,792,0.013162,0.000381,True,True
+hsv_std_s,792,0.008542,0.0,True,True
+sp_hsv_std_s,791,0.007402,0.0,True,True
+rel_hsv_diff_s,792,0.006788,0.0,True,True
+hsv_std_v,792,0.006721,0.0,True,True
+sp_hsv_std_v,791,0.005382,0.0,True,True
+rel_hsv_diff_v,792,0.004266,0.837847,False,False
+hsv_mean_h,791,0.002053,0.0,True,True
+sp_hsv_std_h,791,0.001609,0.018579,True,False
+hsv_std_h,791,0.001555,0.0,True,True
+rel_hsv_diff_h,791,0.00126,1e-06,True,True
+symmetry,0,0.0,,False,False
+border,0,0.0,,False,False
+diameter,0,0.0,,False,False
