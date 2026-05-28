@@ -24,8 +24,8 @@ from pathlib import Path
 from typing import Tuple, Dict, Optional, List
 import warnings
 
-# Add project root to sys.path so `from hair.hair import ...` and
-# `from src.feature_C import ...` work regardless of launch directory.
+# Add project root to sys.path so `from src.feature_C import ...`
+# works regardless of launch directory.
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
@@ -34,7 +34,6 @@ if str(_PROJECT_ROOT) not in sys.path:
 from feature_A import modified_mask, lesion_symmetry, crop_to_bbox
 from feature_B import get_border_feature
 from feature_D import get_diameter_feature
-from hair.hair import remove_hair, remove_pen_mark
 from src.feature_C import extract_all_colour_features
 
 # ----------------------------------------------------------------------
@@ -181,26 +180,16 @@ def load_and_preprocess(img_id: str,
             else:
                 img = img.astype(np.uint8)
 
-        # Drop alpha channel if present, and make the array C-contiguous —
-        # cv2.inpaint rejects non-contiguous slices (crop/resize produce views).
+        # Drop alpha channel if present, and make the array C-contiguous.
+        # cv2 functions used by downstream feature extraction reject non-contiguous
+        # slices (crop/resize produce views), so we normalise the array here.
         if img.ndim == 3 and img.shape[2] == 4:
             img = img[:, :, :3]
         img = np.ascontiguousarray(img)
 
-        # Hair removal based on rating
-        if hair_rating == 1:
-            img = remove_hair(img, radius=2, ksize=4)
-        elif hair_rating == 2:
-            img = remove_hair(img, radius=3, ksize=7)
-        elif hair_rating == 3:
-            img = remove_hair(img, radius=5, ksize=9)
-        elif hair_rating > 3:
-            logger.warning(f"Invalid hair_rating {hair_rating} for {img_id}, skipping hair removal")
-        
-        # Pen mark removal
-        if pen_mark:
-            img = remove_pen_mark(img)
-        
+        # open_question pipeline: only downscaling, no hair removal or pen-mark removal.
+        # The intent is to isolate the effect of reduced resolution from artefact removal.
+
         return mask, img
     
     except Exception as e:
