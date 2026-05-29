@@ -42,25 +42,25 @@ python main.py
 
 ## Outputs
 
-- `data/features.csv` — extracted features (produced by step 2)
-- `results/models/final_model.pkl` — trained final model
-- `results/predictions/final_predictions.csv` — predictions on the held-out
+- `data/features.csv` - extracted features (produced by step 2)
+- `results/models/final_model.pkl` - trained final model
+- `results/predictions/final_predictions.csv` - predictions on the held-out
   test split (or full dataset if `LOAD_MODEL = True`)
-- `results/figures/` — figures used in the report
-- `results/reports/report_Aardvark.pdf` — written report
-- `results/reports/features_Aardvark.csv` — copy of features for the report
+- `results/figures/` - figures used in the report
+- `results/reports/report_Aardvark.pdf` - written report
+- `results/reports/features_Aardvark.csv` - copy of features for the report
 
 ## Source layout
 
-- `src/extract_features.py` — TA entry point for feature extraction
-- `src/extract_features_baseline.py` — orchestrator (no hair removal,
+- `src/extract_features.py` - TA entry point for feature extraction
+- `src/extract_features_baseline.py` - orchestrator (no hair removal,
   no downscaling) used by `extract_features.py`
-- `src/extract_features_extended.py` — pipeline with hair removal
-- `src/extract_features_open_question.py` — pipeline with image downscaling
-- `src/feature_A.py / feature_B.py / feature_C.py / feature_D.py` — per-feature
+- `src/extract_features_extended.py` - pipeline with hair removal
+- `src/extract_features_open_question.py` - pipeline with image downscaling
+- `src/feature_A.py / feature_B.py / feature_C.py / feature_D.py` - per-feature
   implementations (asymmetry, border, colour, diameter)
-- `src/hair.py` — hair-removal helpers
-- `src/*.ipynb` — exploratory notebooks (EDA, feature comparison, model
+- `src/hair.py` - hair-removal helpers
+- `src/*.ipynb` - exploratory notebooks (EDA, feature comparison, model
   evaluation); not required to reproduce the deliverables
 
 ## Notes
