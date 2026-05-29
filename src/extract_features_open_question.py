@@ -1,3 +1,15 @@
+"""
+Optimized Feature Extraction Pipeline for Dermoscopy Images
+
+Key improvements:
+1. Proper error handling with detailed logging
+2. Configurable paths (no hardcoding)
+3. Memory-efficient processing
+4. Better parallel processing configuration
+5. Progress tracking and error reporting
+6. Input validation
+"""
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -7,25 +19,15 @@ from skimage.transform import resize
 import time
 import logging
 import os
-import sys
 from pathlib import Path
 from typing import Tuple, Dict, Optional, List
 import warnings
 
-# Add project root to sys.path so `from hair.hair import ...` works
-# regardless of where this script is launched from.
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
-
-# Import custom modules
+# Import custom modules (all live in src/ alongside this file)
 from feature_A import modified_mask, lesion_symmetry, crop_to_bbox
 from feature_B import get_border_feature
 from feature_D import get_diameter_feature
 from feature_C import extract_all_colour_features
-from hair.hair import remove_hair, remove_pen_mark
-
-# Original version (without resizing)
 
 # ----------------------------------------------------------------------
 # Configuration and Logging Setup
@@ -131,8 +133,37 @@ def load_and_preprocess(img_id: str,
             logger.warning(f"Empty mask for {img_id}")
             return None, None
         
-        # Crop to bounding box
+        # Crop to bounding box FIRST
         mask, img = crop_to_bbox(mask, img)
+
+        # Validate mask after cropping
+        if mask.sum() == 0:
+            logger.warning(f"Empty mask after cropping for {img_id}")
+            return None, None
+
+        # Resize cropped lesion if needed
+        h, w = mask.shape
+        if max(h, w) > config.max_dim:
+            scale = config.max_dim / max(h, w)
+            new_h, new_w = max(1, int(h * scale)), max(1, int(w * scale))
+
+            # Resize mask using nearest neighbor to preserve binary values
+            mask = resize(
+                mask,
+                (new_h, new_w),
+                order=0,
+                preserve_range=True,
+                anti_aliasing=False
+            ).astype(bool)
+
+            # Resize image using bilinear interpolation
+            img = resize(
+                img,
+                (new_h, new_w),
+                order=1,
+                preserve_range=True,
+                anti_aliasing=True
+            )
         
         # Ensure uint8 for OpenCV operations
         if img.dtype != np.uint8:
@@ -142,26 +173,16 @@ def load_and_preprocess(img_id: str,
             else:
                 img = img.astype(np.uint8)
 
-        # Drop alpha channel if present, and make the array C-contiguous —
-        # cv2.inpaint rejects non-contiguous slices (the crop above is a view).
+        # Drop alpha channel if present, and make the array C-contiguous.
+        # cv2 functions used by downstream feature extraction reject non-contiguous
+        # slices (crop/resize produce views), so we normalise the array here.
         if img.ndim == 3 and img.shape[2] == 4:
             img = img[:, :, :3]
         img = np.ascontiguousarray(img)
 
-        # Hair removal based on rating
-        if hair_rating == 1:
-            img = remove_hair(img, radius=2, ksize=4)
-        elif hair_rating == 2:
-            img = remove_hair(img, radius=3, ksize=7)
-        elif hair_rating == 3:
-            img = remove_hair(img, radius=5, ksize=9)
-        elif hair_rating > 3:
-            logger.warning(f"Invalid hair_rating {hair_rating} for {img_id}, skipping hair removal")
-        
-        # Pen mark removal
-        if pen_mark:
-            img = remove_pen_mark(img)
-        
+        # open_question pipeline: only downscaling, no hair removal or pen-mark removal.
+        # The intent is to isolate the effect of reduced resolution from artefact removal.
+
         return mask, img
     
     except Exception as e:
@@ -191,7 +212,7 @@ def process_one_image(args: Tuple[str, Config, bool, int]) -> Dict:
         'processing_status': 'failed',
         'error_message': None
     }
-
+    
     try:
         # Load and preprocess
         mask, img = load_and_preprocess(img_id, config, pen_mark, hair_rating)
@@ -334,7 +355,7 @@ def prepare_arguments(config: Config) -> Tuple[List, Dict]:
 
 
 def run_feature_extraction(config: Config, 
-                          save_path: str = 'featureDf_extended.csv',
+                          save_path: str = 'data/featureDf_open_question.csv',
                           use_parallel: bool = True) -> pd.DataFrame:
     """
     Main feature extraction pipeline.
@@ -421,8 +442,8 @@ def main():
     parser = argparse.ArgumentParser(description='Extract features from dermoscopy images')
     parser.add_argument('--data-dir', type=str, default='../data',
                        help='Path to data directory (default: ../data)')
-    parser.add_argument('--output', type=str, default='featureDf_extended.csv',
-                       help='Output CSV filename (default: featureDf_extended.csv)')
+    parser.add_argument('--output', type=str, default='data/featureDf_open_question.csv',
+                       help='Output CSV filename (default: featureDf_open_question.csv)')
     parser.add_argument('--max-dim', type=int, default=256,
                        help='Maximum image dimension (default: 256)')
     parser.add_argument('--processes', type=int, default=None,

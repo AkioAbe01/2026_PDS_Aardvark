@@ -1,18 +1,72 @@
-# Projects in Data Science (2026)
+# Projects in Data Science 2026 — Group Aardvark
 
-#### Overview
+Skin-lesion (cancer vs. non-cancer) classification on PAD-UFES-20 dermoscopic
+images using hand-crafted ABCD features.
 
-This is a template repository for the "Projects in Data Science" course. You should use this repository for your project.
+## How to reproduce (TA workflow)
 
-If using github.itu.dk, you need to download the repository and make your own. 
+### 1. Install dependencies
 
-If you are using general Github, you can clone or fork the repository directly. 
+```bash
+pip install -r requirements.txt
+```
 
-Your repository MUST be named 2026-PDS-XX where XX is your group name (e.g. 2026-PDS-Pandas). 
+### 2. Extract features from images
 
-#### Python environment
+```bash
+python src/extract_features.py
+```
 
-Follow TA instructions when setting up the Python environment before running any code. Remember to export your Python library requirements by `pip freeze > requirements.txt` and attach it to the repo so we can evaluate your scripts.
+This reads every image/mask from `data/imgs/` and `data/masks/` and writes the
+feature table to `data/features.csv`. To point the script at a different
+dataset, edit `DATA_DIR` / `OUTPUT_CSV` at the top of
+`src/extract_features.py`.
+
+### 3. Run the model
+
+Open `main.py` and choose the mode at the top of the file:
+
+- `LOAD_MODEL = True` (default): load the trained model from
+  `results/models/final_model.pkl` and write predictions to
+  `results/predictions/final_predictions.csv`. No retraining.
+- `LOAD_MODEL = False`: perform 5-fold patient-level cross-validation, train
+  Logistic Regression / kNN / Decision Tree, save each model under
+  `results/models/`, save each model's predictions under
+  `results/predictions/`, and save the best model as `final_model.pkl`.
+
+Then:
+
+```bash
+python main.py
+```
+
+## Outputs
+
+- `data/features.csv` — extracted features (produced by step 2)
+- `results/models/final_model.pkl` — trained final model
+- `results/predictions/final_predictions.csv` — predictions on the held-out
+  test split (or full dataset if `LOAD_MODEL = True`)
+- `results/figures/` — figures used in the report
+- `results/reports/report_Aardvark.pdf` — written report
+- `results/reports/features_Aardvark.csv` — copy of features for the report
+
+## Source layout
+
+- `src/extract_features.py` — TA entry point for feature extraction
+- `src/extract_features_baseline.py` — orchestrator (no hair removal,
+  no downscaling) used by `extract_features.py`
+- `src/extract_features_extended.py` — pipeline with hair removal
+- `src/extract_features_open_question.py` — pipeline with image downscaling
+- `src/feature_A.py / feature_B.py / feature_C.py / feature_D.py` — per-feature
+  implementations (asymmetry, border, colour, diameter)
+- `src/hair.py` — hair-removal helpers
+- `src/*.ipynb` — exploratory notebooks (EDA, feature comparison, model
+  evaluation); not required to reproduce the deliverables
+
+## Notes
+
+This repo is the hand-in for the ITU course "Projects in Data Science" 2026,
+group Aardvark.
 
 #### File Hierarchy
 

@@ -17,3 +17,11 @@ result/predictions/*
 
 __pycache__/
 *.pyc
+
+# IDE / EDITOR
+
+.vscode/
+
+# LOGS
+
+*.log
